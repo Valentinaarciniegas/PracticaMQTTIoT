@@ -1,0 +1,10 @@
+# Carga automatica del dashboard. Se instala en /etc/grafana/provisioning/dashboards/.
+apiVersion: 1
+
+providers:
+  - name: cocatrace
+    folder: CocaTrace
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/cocatrace

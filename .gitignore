@@ -1,0 +1,6 @@
+# Claves del ESP32 (WiFi y MQTT)
+firmware/**/config.h
+# Datos y claves locales
+*.csv
+.env
+*.pem

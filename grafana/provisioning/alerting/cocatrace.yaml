@@ -1,0 +1,132 @@
+# Alertas de Grafana -> Telegram. Se instala en /etc/grafana/provisioning/alerting/.
+# El token del bot y el chat vienen de /etc/default/grafana-server:
+#   TELEGRAM_BOT_TOKEN=...   TELEGRAM_CHAT_ID=...
+# Umbrales de ejemplo (humedad > 80 %, temperatura > 40 °C): ajustarlos a los del proceso real.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: Telegram CocaTrace
+    receivers:
+      - uid: telegram-cocatrace
+        type: telegram
+        settings:
+          bottoken: $TELEGRAM_BOT_TOKEN
+          chatid: "$TELEGRAM_CHAT_ID"
+
+policies:
+  - orgId: 1
+    receiver: Telegram CocaTrace
+    group_by: ["alertname"]
+    group_wait: 10s
+    group_interval: 1m
+    repeat_interval: 1h
+
+groups:
+  - orgId: 1
+    name: secadero
+    folder: CocaTrace
+    interval: 30s
+    rules:
+      - uid: humedad-alta
+        title: Humedad alta en el secadero
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severidad: alta
+        annotations:
+          summary: 'Humedad de {{ printf "%.1f" (index .Values "B").Value }} % en {{ .Labels.secadero }} (limite 80 %). Riesgo de hongos en la hoja.'
+        data:
+          - refId: A
+            datasourceUid: influx-secado
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              query: |-
+                from(bucket: "secado")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r._measurement == "ambiente" and r.variable == "humedad")
+                  |> last()
+                  |> keep(columns: ["_time", "_value", "secadero"])
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+
+      - uid: temperatura-alta
+        title: Temperatura alta en el secadero
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severidad: alta
+        annotations:
+          summary: 'Temperatura de {{ printf "%.1f" (index .Values "B").Value }} °C en {{ .Labels.secadero }} (limite 40 °C).'
+        data:
+          - refId: A
+            datasourceUid: influx-secado
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              query: |-
+                from(bucket: "secado")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r._measurement == "ambiente" and r.variable == "temperatura")
+                  |> last()
+                  |> keep(columns: ["_time", "_value", "secadero"])
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [40] }
+
+      # Si el ESP32 deja de enviar 3 minutos, la consulta no devuelve datos -> alerta
+      - uid: esp32-sin-datos
+        title: El ESP32 dejo de enviar datos
+        condition: C
+        for: 0s
+        noDataState: Alerting
+        execErrState: Error
+        labels:
+          severidad: media
+        annotations:
+          summary: 'No llegan lecturas del secadero desde hace mas de 3 minutos. Revisar el ESP32, el WiFi o el broker MQTT.'
+        data:
+          - refId: A
+            datasourceUid: influx-secado
+            relativeTimeRange: { from: 180, to: 0 }
+            model:
+              refId: A
+              query: |-
+                from(bucket: "secado")
+                  |> range(start: -3m)
+                  |> filter(fn: (r) => r._measurement == "ambiente" and r.variable == "temperatura")
+                  |> count()
+                  |> keep(columns: ["_value"])
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [1] }

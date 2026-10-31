@@ -1,0 +1,20 @@
+# Fuente de datos de Grafana: InfluxDB 2 (Flux) en la subred privada.
+# Se instala en /etc/grafana/provisioning/datasources/.
+# El token (solo LECTURA del bucket "secado") viene de /etc/default/grafana-server:
+#   INFLUX_TOKEN_GRAFANA=...
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB secado
+    uid: influx-secado
+    type: influxdb
+    access: proxy
+    url: http://10.0.132.68:8086
+    isDefault: true
+    editable: false
+    jsonData:
+      version: Flux
+      organization: cocatrace
+      defaultBucket: secado
+    secureJsonData:
+      token: $INFLUX_TOKEN_GRAFANA

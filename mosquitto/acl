@@ -1,0 +1,9 @@
+# ESP32: solo publica sus lecturas
+user esp32
+topic write secadero1/#
+# Telegraf: solo lee las lecturas para guardarlas en InfluxDB y CSV
+user telegraf
+topic read secadero1/#
+# Administrador (MQTT Explorer): todo
+user admin
+topic readwrite #
